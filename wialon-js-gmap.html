@@ -1,0 +1,219 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+<title>wialon-js-gmap</title>
+<script type="text/javascript" src="//maps.googleapis.com/maps/api/js?v=3.exp"></script>
+<script type="text/javascript" src="//code.jquery.com/jquery-latest.min.js"></script>
+<script type="text/javascript" src="//hst-api.wialon.com/wsdk/script/wialon.js"></script>
+<script type="text/javascript"src="js/markerwithlabel.js"></script>
+
+<link rel="stylesheet" type="text/css" href="css/maps.css" media="screen,projection" />
+<script type="text/javascript">
+// ====================================================================
+// wialon-js-gmap.html 
+// Author : Usman Arif, http://iki.cak.us
+// Date : 2017-11-26 02:30:00
+// Discription : Get Wialon assets and display to gmap every x seconds 
+// ====================================================================
+
+    var token = "5dce19710a5e26ab8b7b8986cb3c49e58C291791B7F0A7AEB8AFBFCEED7DC03BC48FF5F8";  //edit with your Wialon token HERE!!!!!
+    
+
+    var latLng = new google.maps.LatLng(-7.9666204,112.6326321);
+    
+    var adaunit = 0, sess, map, linkunit, linkid = [], markMarker = [];
+    
+    function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 8,
+        center: latLng,
+        mapTypeId: google.maps.MapTypeId.ROADMAP
+        });
+    }
+   
+    function drawmarker(id,unitname,time,x,y,z,cour,s,sc){
+        var latLng = new google.maps.LatLng(x,y);
+        var icons = "http://hst-api.wialon.com/avl_item_image/"+unitid+"/32/icon.png";
+        var marker = new MarkerWithLabel({
+            position: latLng,
+            map: map,
+            icon: icons,
+            labelContent: unitname,
+            labelAnchor: new google.maps.Point(22, 0),
+            labelClass: "labels" // the CSS class for the label
+        });
+        linkid[id] = latLng;
+        linkunit = '<a href ="#" onclick="gounit('+id+')">'+unitname+'</a><br />';  
+        $("#unitlist").append(linkunit);      
+        course = course2text(cour); 
+        google.maps.event.addListener(marker, 'click', function(e) { 
+            var html = "Unit : " + unitname + "<br /> Time : " + time + "<br /> Latitude : " + x + "<br />Longitude : " + y + "<br />Altitude : " + z + "<br />Speed : " + s +"KM/h<br /> Course : "+ course; 
+            $("#unitinfo").html(html);
+        });
+        return marker;
+    }
+    
+    function gounit(id) {
+        if(linkid[id]) {
+            map.setCenter(linkid[id]);
+            map.setZoom(15);
+    		stopMarkerAnimation();
+    		markMarker[id].setAnimation(google.maps.Animation.BOUNCE);
+    		google.maps.event.trigger(markMarker[id], 'click');
+                
+        } else {
+            alert('Maaf, tidak dapat menemukan data lokasi terakhir: ' + id);
+        }
+    }
+
+    function stopMarkerAnimation(){
+        if (markMarker) {
+            for (i in markMarker) {
+    			if (markMarker[i].getAnimation() != null) {
+    				markMarker[i].setAnimation(null);
+    			}
+            }
+        }
+    }
+    
+    function course2text(c){
+    	var retval= "-";
+		if (c >= 1 && c <=22){
+			retval = "North";
+		}
+		if (c >= 23 && c <=68){
+			retval = "North East";
+		}
+		if (c >= 69 && c <=114){
+			retval = "East";
+		}
+		if (c >= 115 && c <=160){
+			retval = "South East";
+		}		
+		if (c >= 161 && c <=206){
+			retval = "South";
+		}
+		if (c >= 207 && c <= 252 ){
+			retval = "South West";
+		}
+		if (c >= 253 && c <=298){
+			retval = "West";
+		}
+		if (c >= 299 && c <=344){
+			retval = "North West";
+		}
+		if (c >= 344 && c <=360){
+			retval = "North";
+		}
+		if (c == 0){
+			retval = "-";
+		}
+    	return retval;	
+    }
+
+    function rmmarker() {
+        if (markMarker) {
+            for (i in markMarker) {
+               markMarker[i].setMap(null);
+            }
+            markMarker.length = 0;
+            $("#unitlist").empty();      
+            $("#unitlist").html("<h4>List Asset</h4>Click your asset(s)<br />");      
+       }
+    }
+    
+    function loopdata(){
+        loadwialon();
+        if (adaunit){
+            setTimeout("loopdata()",10000);
+        }else{
+            setTimeout("loopdata()",2000);
+        }
+    }
+
+    function initwialon(){
+         sess = wialon.core.Session.getInstance(); // get instance of current Session
+    }
+    
+    function loadwialon(){
+        var user = sess.getCurrUser(); 
+        if ( user ) { 
+            var units = sess.getItems("avl_unit");
+            while (!units || !units.length){
+                debug("Units not found....."); 
+            	var flags = wialon.item.Item.dataFlag.base | wialon.item.Unit.dataFlag.lastMessage;
+                sess.updateDataFlags([{type: "type", data: "avl_unit", flags: flags, mode: 0}],
+    	       	function (code) {
+                		if (code) { debug(wialon.core.Errors.getErrorText(code)); return; }
+                		units = sess.getItems("avl_unit");
+    	       	});
+        		if (!units.length) break;
+            }
+            debug("Get Assets data from Wialon Server");
+    
+            rmmarker();
+    	    for (var i = 0; i< units.length; i++){
+                adaunit = i;
+    		    var u = units[i];
+    		    unitid      = u.getId();                                                 // get Unit ID
+    		    unitname    = u.getName();                                               // get Unit Name
+    		    var unit    = wialon.core.Session.getInstance().getItem(unitid);         // Get Session Instance by Unit ID
+    		    pos         = unit.getPosition();                                        // Get Unit Posisiton information
+    		    if (pos){
+                    unittime    = wialon.util.DateTime.formatTime(pos.t);             // Time
+                    x       = pos.y;                                                  // latitude
+                    y       = pos.x;                                                  // longitude
+                    z       = pos.z;                                                  // altitude
+                    c       = pos.c;                                                  // curse
+                    sc      = pos.sc;                                                 // sattelite count
+                    s      = pos.s;                                                   // speed
+                    
+                    var marker = drawmarker(i,unitname,unittime,x,y,z,c,s,sc);          // create marker and list
+                    markMarker[i] = marker;                                             // save marker to array        
+    		    }
+    		}
+    		debug(".....");
+
+    		return;
+    
+        }else{
+            debug("try login ...");
+        	sess.initSession("http://hst-api.wialon.com"); 
+    	    sess.loginToken(token, "",                                                // trying login with token
+            function (code) { 
+        			if (code) {
+                        debug(wialon.core.Errors.getErrorText(code)); 
+        			}else{ 
+                        debug("Logged successfully"); 
+                        var user = sess.getCurrUser();
+                        debug("You are logged as '" + user.getName()+"', next progreess");
+                       loadwialon();
+        			}
+        		}
+            );
+        }
+        
+    }
+    
+    function debug(t){
+        $("#debug").html(t);
+    }
+</script>
+
+</head>
+<body style="height:100%;margin:0" onload="initMap()">
+    <div id="map" style="width: 100%; height: 100%;"></div>
+    <div class="map_info" style="margin-right:5px;"><div id="debug"></div><br /><br /><div id="unitinfo" style="padding:5px;position:relative"></div><div id="unitlist" style="padding:5px;position:relative"></div>
+    <noscript><b>JavaScript must be enabled in order for you to use Google Maps.</b> However, it seems JavaScript is either disabled or not supported by your browser. To view Google Maps, enable JavaScript by changing your browser options, and then try again.</noscript>
+    <script>
+        $(document).ready(function () {
+            initMap();
+            initwialon();
+            loopdata();
+        });
+    </script>
+</body>
+</html>
+	
+	
+	
